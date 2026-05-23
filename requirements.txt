@@ -1,0 +1,5 @@
+apify-client>=1.7
+flask>=3.0
+gunicorn>=21.0
+playwright>=1.44
+requests>=2.32

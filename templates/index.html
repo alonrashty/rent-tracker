@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>London Flat Hunt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<style>
+/* ── Reset & tokens ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+
+:root {
+  --bg:          #f5f5f5;
+  --surface:     #ffffff;
+  --surface2:    #ebebeb;
+  --border:      #e0e0e0;
+  --text:        #1a1a1a;
+  --text-muted:  #757575;
+  --accent:      #0066FF;
+  --accent-h:    #0052CC;
+  --shadow:      0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.07);
+  --shadow-hover:0 4px 8px rgba(0,0,0,.1), 0 12px 24px rgba(0,0,0,.14);
+  --radius:      12px;
+  --radius-sm:   7px;
+
+  /* Commute badge palette */
+  --ct-good-bg:  #e8f5e9;
+  --ct-good-fg:  #2e7d32;
+  --ct-ok-bg:    #eceff1;
+  --ct-ok-fg:    #546e7a;
+  --ct-bad-bg:   #fce4ec;
+  --ct-bad-fg:   #880e4f;
+  --ct-na-bg:    #f5f5f5;
+  --ct-na-fg:    #9e9e9e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #1a1a1a;
+    --surface:     #242424;
+    --surface2:    #2f2f2f;
+    --border:      #383838;
+    --text:        #efefef;
+    --text-muted:  #b2b2b2;
+    --accent:      #4d94ff;
+    --accent-h:    #6aa3ff;
+    --shadow:      0 1px 2px rgba(0,0,0,.5), 0 3px 10px rgba(0,0,0,.4);
+    --shadow-hover:0 6px 12px rgba(0,0,0,.6), 0 14px 28px rgba(0,0,0,.5);
+
+    --ct-good-bg:  #0e2b12;
+    --ct-good-fg:  #66bb6a;
+    --ct-ok-bg:    #1c2433;
+    --ct-ok-fg:    #7a8ba6;
+    --ct-bad-bg:   #290f1a;
+    --ct-bad-fg:   #a05070;
+    --ct-na-bg:    #282828;
+    --ct-na-fg:    #5a5a5a;
+  }
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+#app { display: flex; flex-direction: column; height: 100%; }
+
+/* ── Header ─────────────────────────────────────────────────── */
+header {
+  flex-shrink: 0;
+  height: 52px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  display: flex; align-items: center; gap: 14px;
+  z-index: 100;
+}
+
+header h1 { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.3px; white-space: nowrap; }
+
+#result-count { color: var(--text-muted); font-size: 13px; font-weight: 500; white-space: nowrap; }
+
+#sort-select {
+  padding: 6px 12px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text);
+  border-radius: 20px; font-size: 13px; cursor: pointer;
+  font-family: inherit; font-weight: 500; transition: border-color .15s;
+  appearance: none;
+}
+#sort-select:focus { outline: none; border-color: var(--text); }
+
+#mobile-filter-toggle {
+  display: none;
+  padding: 6px 14px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text);
+  border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600;
+  font-family: inherit;
+}
+
+/* ── Main columns ───────────────────────────────────────────── */
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────── */
+#sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--surface);
+  padding: 20px 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#sidebar h2 {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--text-muted); margin-bottom: 20px;
+}
+
+.filter-group { margin-bottom: 22px; }
+
+.filter-group label.group-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--text); margin-bottom: 9px;
+}
+
+/* Pill chips */
+.check-group { display: flex; flex-wrap: wrap; gap: 5px; }
+.check-group label {
+  display: flex; align-items: center; cursor: pointer;
+  padding: 5px 11px; border-radius: 20px;
+  border: 1.5px solid var(--border);
+  font-size: 12px; font-weight: 500;
+  background: var(--surface); transition: all .15s;
+  user-select: none;
+}
+.check-group label:has(input:checked) {
+  background: var(--text); color: var(--surface); border-color: var(--text);
+}
+.check-group input[type=checkbox] { display: none; }
+
+/* Range sliders */
+.range-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.range-row input[type=range] {
+  flex: 1; accent-color: var(--accent); cursor: pointer;
+  transition: opacity .2s;
+}
+.range-row input[type=range].inactive { opacity: 0.32; }
+.range-val {
+  font-size: 12px; color: var(--text); min-width: 44px; text-align: right; font-weight: 600;
+}
+
+#reset-filters {
+  width: 100%; padding: 8px; margin-top: 4px;
+  border: 1.5px solid var(--border); border-radius: 20px;
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit;
+  transition: all .15s;
+}
+#reset-filters:hover { border-color: var(--text); color: var(--text); }
+
+/* ── Drag handles ────────────────────────────────────────────── */
+.drag-handle {
+  flex-shrink: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+  z-index: 10;
+  transition: background .15s;
+}
+.drag-handle::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -4px; right: -4px;
+}
+.drag-handle:hover, .drag-handle.dragging { background: var(--accent); }
+
+/* ── Feed column ─────────────────────────────────────────────── */
+#feed {
+  width: 420px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Feed search */
+#feed-search-wrap {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding-bottom: 6px;
+  background: var(--bg);
+}
+#feed-search {
+  width: 100%;
+  padding: 7px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+#feed-search:focus { border-color: var(--accent); }
+#feed-search::placeholder { color: var(--text-muted); }
+
+#empty-msg {
+  display: none; text-align: center; padding: 60px 20px;
+  color: var(--text-muted); font-size: 15px;
+}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card {
+  display: flex;
+  flex-direction: row;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: box-shadow .2s, transform .15s;
+  min-height: 148px;
+}
+.card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+.card.map-highlight {
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-hover);
+}
+
+/* Photo */
+.card-photo-wrap {
+  width: 148px;
+  flex-shrink: 0;
+  position: relative;
+}
+.carousel {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  min-height: 148px;
+  background: var(--surface2);
+}
+.card-photo {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.card-photo-placeholder {
+  width: 100%; height: 100%; min-height: 148px;
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 28px;
+}
+.carousel-prev, .carousel-next {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,0.52); color: white; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; padding: 0;
+  opacity: 0; transition: opacity .15s;
+  user-select: none;
+}
+.carousel-prev { left: 4px; }
+.carousel-next { right: 4px; }
+.carousel:hover .carousel-prev,
+.carousel:hover .carousel-next { opacity: 1; }
+.carousel-dots {
+  position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 3px; pointer-events: none;
+}
+.dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.45); }
+.dot.active { background: white; }
+
+.status-badge {
+  position: absolute; top: 8px; left: 8px;
+  padding: 3px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; white-space: nowrap;
+}
+.badge-new       { background: var(--accent); color: white; }
+.badge-favourite { background: #2e7d32; color: white; }
+.badge-dismissed { background: rgba(80,80,80,.82); color: white; }
+
+.heart-btn {
+  position: absolute; top: 7px; right: 7px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,255,255,0.88);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #aaaaaa;
+  transition: transform .15s, color .15s;
+  padding: 0;
+}
+.heart-btn:hover { transform: scale(1.12); color: #e00032; }
+.heart-btn svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: fill .15s, stroke .15s; }
+.heart-btn.active { color: #e00032; }
+.heart-btn.active svg { fill: #e00032; stroke: #e00032; }
+
+.card-photo-links {
+  position: absolute; bottom: 6px; left: 6px;
+  display: flex; gap: 4px;
+}
+.card-photo-links a {
+  font-size: 10px; text-decoration: none;
+  padding: 3px 8px; border-radius: 20px; font-weight: 600;
+  background: rgba(0,0,0,0.55); color: white;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  transition: background .15s;
+}
+.card-photo-links a:hover { background: rgba(0,0,0,0.78); }
+
+/* Card body */
+.card-body {
+  flex: 1;
+  padding: 10px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.card-rent { font-size: 17px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; }
+.rent-period { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.rent-green { color: #2e7d32; }
+.rent-amber { color: #e65100; }
+.rent-red   { color: var(--accent); }
+
+@media (prefers-color-scheme: dark) {
+  .rent-green { color: #66bb6a; }
+  .rent-amber { color: #ffa726; }
+  .rent-red   { color: #ef5350; }
+}
+
+.platform-chip {
+  flex-shrink: 0;
+  font-size: 10px; padding: 2px 7px; border-radius: 20px;
+  background: var(--surface2); color: var(--text-muted);
+  text-transform: capitalize; font-weight: 500;
+}
+
+.card-meta { display: flex; flex-wrap: wrap; gap: 3px; }
+.meta-chip {
+  font-size: 11px; color: var(--text-muted); font-weight: 500;
+  padding: 2px 6px; border-radius: 20px;
+  background: var(--surface2); white-space: nowrap;
+}
+
+.commute-row { display: flex; gap: 4px; flex-wrap: wrap; }
+.commute-pill { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 20px; white-space: nowrap; }
+.ct-good { background: var(--ct-good-bg); color: var(--ct-good-fg); }
+.ct-ok   { background: var(--ct-ok-bg);   color: var(--ct-ok-fg);   }
+.ct-bad  { background: var(--ct-bad-bg);  color: var(--ct-bad-fg);  }
+.ct-na   { background: var(--ct-na-bg);   color: var(--ct-na-fg);   }
+
+.card-address {
+  font-weight: 600; font-size: 12px; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-location { font-size: 11px; color: var(--text-muted); }
+
+.dismiss-btn {
+  align-self: flex-end;
+  margin-top: auto;
+  margin-bottom: 2px;
+  width: 24px; height: 24px; border-radius: 6px;
+  background: rgba(239,68,68,0.13); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: #ef4444; padding: 0; transition: background .15s; flex-shrink: 0;
+}
+.dismiss-btn:hover { background: rgba(239,68,68,0.25); }
+.dismiss-btn.active { background: #ef4444; color: white; }
+
+/* ── Map panel ──────────────────────────────────────────────── */
+#map-panel {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#map {
+  height: 100%;
+  width: 100%;
+}
+
+/* Map search overlay */
+#map-search-wrap {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100% - 24px));
+}
+#map-search-inner {
+  display: flex;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.22);
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+}
+#map-search {
+  flex: 1;
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+#map-search::placeholder { color: var(--text-muted); }
+#map-search-btn {
+  padding: 0 13px;
+  background: transparent;
+  border: none;
+  border-left: 1.5px solid var(--border);
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 15px;
+  transition: color .15s, background .15s;
+  display: flex; align-items: center;
+}
+#map-search-btn:hover { color: var(--accent); background: var(--surface2); }
+#map-search-results {
+  display: none;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+.map-result-item {
+  padding: 8px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: background .1s;
+}
+.map-result-item:first-child { border-top: none; }
+.map-result-item:hover { background: var(--surface2); }
+
+/* Price pin markers */
+.price-pin-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+.price-pin {
+  background: #1c1c2e;
+  color: #dde0f0;
+  border: 1.5px solid #3a3a58;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.55);
+  font-family: 'Inter', sans-serif;
+  user-select: none;
+  transition: background .15s, border-color .15s, transform .15s;
+  line-height: 1;
+}
+.pin-house {
+  display: none;
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45));
+}
+#map.map-zoomed .pin-house { display: block; }
+.pin-hover .price-pin {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  transform: scale(1.12);
+}
+.price-marker { z-index: 400 !important; }
+.price-marker.pin-hover { z-index: 500 !important; }
+
+@media (prefers-color-scheme: light) {
+  .price-pin {
+    background: #ffffff;
+    color: #1a1a1a;
+    border-color: #c0c0c0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+}
+
+/* ── Mobile ──────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  #mobile-filter-toggle { display: block; }
+  #map-panel { display: none; }
+  #feed { flex: 1; border-right: none; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 200; width: 100%; max-width: none;
+    display: none; overflow-y: auto; padding-top: 16px;
+  }
+  #sidebar.open { display: block; }
+  #sidebar-close {
+    display: block; width: 100%; padding: 10px; margin-bottom: 16px;
+    border: 1.5px solid var(--border); border-radius: 20px;
+    background: transparent; color: var(--text); cursor: pointer;
+    font-weight: 600; font-size: 13px; font-family: inherit;
+  }
+}
+@media (min-width: 901px) { #sidebar-close { display: none; } }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>London Flat Hunt</h1>
+    <span id="result-count">Loading…</span>
+    <label for="sort-select" style="font-size:13px;color:var(--text-muted);font-weight:500">Sort:</label>
+    <select id="sort-select">
+      <option value="rank">Rank score</option>
+      <option value="rent">Rent (low→high)</option>
+      <option value="listed" selected>Listed date (newest)</option>
+      <option value="work">Commute to work</option>
+      <option value="lse">Commute to LSE</option>
+      <option value="dom">Days on market</option>
+    </select>
+    <button id="mobile-filter-toggle">Filters</button>
+  </header>
+
+  <div id="main">
+
+    <aside id="sidebar" style="width:240px">
+      <button id="sidebar-close">✕ Close filters</button>
+      <h2>Filters</h2>
+
+      <div class="filter-group">
+        <label class="group-label">Max Rent</label>
+        <div class="range-row">
+          <input type="range" id="max-rent" min="500" max="4000" step="50" value="2500">
+          <span class="range-val" id="max-rent-val">£2,500</span>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="group-label">Max Commute — Work (mins)</label>
+        <div class="range-row">
+          <input type="range" id="max-work" min="0" max="90" step="5" value="90" class="inactive">
+          <span class="range-val" id="max-work-val">Any</span>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="group-label">Max Commute — LSE (mins)</label>
+        <div class="range-row">
+          <input type="range" id="max-lse" min="0" max="90" step="5" value="90" class="inactive">
+          <span class="range-val" id="max-lse-val">Any</span>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="group-label">Status</label>
+        <div class="check-group" id="status-checks">
+          <label><input type="checkbox" class="status-check" value="new" checked> New</label>
+          <label><input type="checkbox" class="status-check" value="favourite" checked> Favourite</label>
+          <label><input type="checkbox" class="status-check" value="dismissed"> Dismissed</label>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="group-label">Platform</label>
+        <div class="check-group" id="platform-checks"></div>
+      </div>
+
+      <button id="reset-filters">Reset all filters</button>
+    </aside>
+
+    <div class="drag-handle" data-between="sidebar-feed"></div>
+
+    <div id="feed" style="width:420px">
+      <div id="feed-search-wrap">
+        <input id="feed-search" type="text" placeholder="Search address, area, postcode…" autocomplete="off">
+      </div>
+      <div id="empty-msg">No listings match your filters.</div>
+    </div>
+
+    <div class="drag-handle" data-between="feed-map"></div>
+
+    <div id="map-panel">
+      <div id="map"></div>
+      <div id="map-search-wrap">
+        <div id="map-search-inner">
+          <input id="map-search" type="text" placeholder="Search any place…" autocomplete="off">
+          <button id="map-search-btn">&#8629;</button>
+        </div>
+        <div id="map-search-results"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+'use strict';
+
+/* ── State ─────────────────────────────────────────────────── */
+let ALL      = [];
+let FILTERED = [];
+let CURRENT_FILTERS = { maxWork: 90, maxLse: 90 };
+let SEARCH_QUERY = '';
+
+let MAP       = null;
+let MARKERS   = {};   // id -> Leaflet marker element
+let GEOCODED  = false;
+let _hoveredId = null;
+let _mapFitted = false;
+
+const AREA_TIERS = {
+  'Angel': 1.0, 'Clerkenwell': 1.0, 'Farringdon': 1.0, 'Barbican': 1.0,
+  'Hoxton': 0.5, 'Shoreditch': 0.5, 'Bethnal Green': 0.5,
+};
+
+
+/* ── Boot ──────────────────────────────────────────────────── */
+async function boot() {
+  initMap();
+  const res = await fetch('/api/listings');
+  ALL = await res.json();
+
+  buildDynamicFilters();
+  applyAndRender();          // render cards immediately, map pins come after geocoding
+
+  await geocodeListings(ALL);
+  GEOCODED = true;
+  updateMapMarkers();
+}
+
+/* ── Geocoding (postcodes.io bulk API) ──────────────────────── */
+async function geocodeListings(listings) {
+  const unique = [...new Set(listings.map(l => l.postcode).filter(Boolean))];
+  const BATCH  = 100;
+  const pcMap  = {};
+
+  for (let i = 0; i < unique.length; i += BATCH) {
+    const batch = unique.slice(i, i + BATCH);
+    try {
+      const resp = await fetch('https://api.postcodes.io/postcodes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postcodes: batch }),
+      });
+      const data = await resp.json();
+      if (data.result) {
+        data.result.forEach(item => {
+          if (item.result) pcMap[item.query] = { lat: item.result.latitude, lon: item.result.longitude };
+        });
+      }
+    } catch (e) {
+      console.warn('[geocode] batch failed:', e);
+    }
+  }
+
+  listings.forEach(l => {
+    if (l.lat != null && l.lon != null) {
+      l._lat = l.lat; l._lon = l.lon;
+    } else if (l.postcode && pcMap[l.postcode]) {
+      l._lat = pcMap[l.postcode].lat;
+      l._lon = pcMap[l.postcode].lon;
+    }
+  });
+
+  // Fallback: for listings still without coords (outcode-only postcodes like "N16", "E9"),
+  // hit the outcodes endpoint which accepts district-level codes and returns a centroid.
+  const needOutcode = [...new Set(
+    listings.filter(l => l._lat == null && l.postcode).map(l => l.postcode)
+  )];
+  const ocMap = {};
+  for (const oc of needOutcode) {
+    try {
+      const r = await fetch(`https://api.postcodes.io/outcodes/${encodeURIComponent(oc)}`);
+      const d = await r.json();
+      if (d.result) ocMap[oc] = { lat: d.result.latitude, lon: d.result.longitude };
+    } catch (_) {}
+  }
+  listings.forEach(l => {
+    if (l._lat == null && l.postcode && ocMap[l.postcode]) {
+      l._lat = ocMap[l.postcode].lat;
+      l._lon = ocMap[l.postcode].lon;
+    }
+  });
+}
+
+/* ── Map ────────────────────────────────────────────────────── */
+function initMap() {
+  MAP = L.map('map', { zoomControl: true }).setView([51.532, -0.075], 13);
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }
+  ).addTo(MAP);
+  MAP.on('zoomend', updateZoomClass);
+}
+
+function updateMapMarkers() {
+  if (!MAP) return;
+  Object.values(MARKERS).forEach(m => m.remove());
+  MARKERS = {};
+
+  const bounds = [];
+
+  FILTERED.forEach(l => {
+    if (l._lat == null || l._lon == null) return;
+
+    const priceStr = `£${(l.rent_pcm ?? 0).toLocaleString()}`;
+    const icon = L.divIcon({
+      className: 'price-marker',
+      html: `<div class="price-pin-wrap"><div class="price-pin">${priceStr}</div><span class="pin-house">🏠</span></div>`,
+      iconSize:   null,
+      iconAnchor: [28, 16],
+    });
+
+    const marker = L.marker([l._lat, l._lon], { icon }).addTo(MAP);
+    marker.on('click', () => {
+      const card = document.querySelector(`.card[data-id="${l.id}"]`);
+      if (!card) return;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('map-highlight');
+      setTimeout(() => card.classList.remove('map-highlight'), 1600);
+    });
+
+    MARKERS[l.id] = marker;
+    bounds.push([l._lat, l._lon]);
+  });
+
+  if (!_mapFitted && bounds.length > 0) {
+    MAP.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    _mapFitted = true;
+  }
+}
+
+const HOUSE_ZOOM = 15;
+function updateZoomClass() {
+  document.getElementById('map').classList.toggle('map-zoomed', MAP.getZoom() >= HOUSE_ZOOM);
+}
+
+
+/* ── Dynamic filters ────────────────────────────────────────── */
+function buildDynamicFilters() {
+  const platforms = [...new Set(ALL.map(l => l.platform).filter(Boolean))].sort();
+  const platEl = document.getElementById('platform-checks');
+  platforms.forEach(p => {
+    const lbl = document.createElement('label');
+    lbl.innerHTML = `<input type="checkbox" class="platform-check" value="${esc(p)}" checked> ${esc(p)}`;
+    platEl.appendChild(lbl);
+  });
+}
+
+/* ── Ranking ───────────────────────────────────────────────── */
+function computeRanks(listings) {
+  if (!listings.length) return listings;
+
+  const rents = listings.map(l => l.rent_pcm).filter(v => v != null);
+  const works = listings.map(l => effectiveCommute(l, 'work')).filter(v => v != null);
+  const lses  = listings.map(l => effectiveCommute(l, 'lse')).filter(v => v != null);
+
+  const minRent = Math.min(...rents), maxRent = Math.max(...rents);
+  const minWork = Math.min(...works), maxWork = Math.max(...works);
+  const minLse  = Math.min(...lses),  maxLse  = Math.max(...lses);
+
+  return listings.map(l => {
+    let score = 0, totalW = 0;
+
+    if (l.rent_pcm != null && maxRent !== minRent) { score += 0.35 * (1 - norm(l.rent_pcm, minRent, maxRent)); totalW += 0.35; }
+    else if (l.rent_pcm != null) { score += 0.35; totalW += 0.35; }
+
+    const cw = effectiveCommute(l, 'work');
+    if (cw != null && maxWork !== minWork) { score += 0.25 * (1 - norm(cw, minWork, maxWork)); totalW += 0.25; }
+    else if (cw != null) { score += 0.25; totalW += 0.25; }
+
+    const cl = effectiveCommute(l, 'lse');
+    if (cl != null && maxLse !== minLse) { score += 0.25 * (1 - norm(cl, minLse, maxLse)); totalW += 0.25; }
+    else if (cl != null) { score += 0.25; totalW += 0.25; }
+
+    const tier = AREA_TIERS[l.area] ?? 0;
+    score += 0.15 * tier; totalW += 0.15;
+
+    l._rank = totalW > 0 ? score / totalW * (totalW / 1.0) : 0;
+    return l;
+  });
+}
+
+function effectiveCommute(l, dest) {
+  const raw = dest === 'work' ? l.commute_work_mins : l.commute_lse_mins;
+  if (raw != null) return raw;
+  if (l.tfl_failed && l.area) return areaMedianCommute(l.area, dest);
+  return null;
+}
+
+let _areaCommuteCache = null;
+function areaMedianCommute(area, dest) {
+  if (!_areaCommuteCache) {
+    _areaCommuteCache = {};
+    ['work', 'lse'].forEach(d => {
+      _areaCommuteCache[d] = {};
+      const field = d === 'work' ? 'commute_work_mins' : 'commute_lse_mins';
+      const byArea = {};
+      ALL.forEach(l => {
+        if (l[field] != null) (byArea[l.area] = byArea[l.area] || []).push(l[field]);
+      });
+      Object.entries(byArea).forEach(([a, vals]) => {
+        vals.sort((x, y) => x - y);
+        _areaCommuteCache[d][a] = vals[Math.floor(vals.length / 2)];
+      });
+    });
+  }
+  return (_areaCommuteCache[dest] || {})[area] ?? null;
+}
+
+function norm(v, min, max) { return max === min ? 0 : (v - min) / (max - min); }
+
+/* ── Filter + sort ─────────────────────────────────────────── */
+function getFilters() {
+  const checked = sel => [...document.querySelectorAll(sel)]
+    .filter(el => el.checked).map(el => el.value);
+  return {
+    platforms: new Set(checked('.platform-check')),
+    statuses:  new Set(checked('.status-check')),
+    maxRent:   +document.getElementById('max-rent').value,
+    maxWork:   +document.getElementById('max-work').value,
+    maxLse:    +document.getElementById('max-lse').value,
+    sort:      document.getElementById('sort-select').value,
+  };
+}
+
+function applyAndRender() {
+  _areaCommuteCache = null;
+  const f = getFilters();
+  CURRENT_FILTERS = f;
+
+  FILTERED = ALL.filter(l => {
+    if (f.platforms.size && !f.platforms.has(l.platform)) return false;
+    if (f.statuses.size  && !f.statuses.has(l.status))    return false;
+    if (l.rent_pcm > f.maxRent)                            return false;
+    if (f.maxWork < 90 && l.commute_work_mins != null && l.commute_work_mins > f.maxWork) return false;
+    if (f.maxLse  < 90 && l.commute_lse_mins  != null && l.commute_lse_mins  > f.maxLse)  return false;
+    if (SEARCH_QUERY) {
+      const q = SEARCH_QUERY.toLowerCase();
+      const haystack = [l.address, l.title, l.area, l.neighbourhood, l.postcode]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+
+  FILTERED = computeRanks(FILTERED);
+
+  FILTERED.sort((a, b) => {
+    switch (f.sort) {
+      case 'rank':   return (b._rank ?? 0) - (a._rank ?? 0);
+      case 'rent':   return (a.rent_pcm ?? 0) - (b.rent_pcm ?? 0);
+      case 'listed': return (b.listed_date ?? '').localeCompare(a.listed_date ?? '');
+      case 'work':   return (a.commute_work_mins ?? 999) - (b.commute_work_mins ?? 999);
+      case 'lse':    return (a.commute_lse_mins ?? 999) - (b.commute_lse_mins ?? 999);
+      case 'dom':    return (a.days_on_market ?? 999) - (b.days_on_market ?? 999);
+      default:       return 0;
+    }
+  });
+
+  renderFeed();
+  if (GEOCODED) updateMapMarkers();
+}
+
+/* ── Render ────────────────────────────────────────────────── */
+function renderFeed() {
+  const feed = document.getElementById('feed');
+  const emptyMsg = document.getElementById('empty-msg');
+
+  [...feed.querySelectorAll('.card')].forEach(el => el.remove());
+
+  document.getElementById('result-count').textContent =
+    `${FILTERED.length} listing${FILTERED.length !== 1 ? 's' : ''}`;
+
+  if (!FILTERED.length) { emptyMsg.style.display = 'block'; return; }
+  emptyMsg.style.display = 'none';
+
+  FILTERED.forEach(l => feed.appendChild(buildCard(l)));
+}
+
+function locationLabel(l) {
+  return l.neighbourhood || l.area || '';
+}
+
+function commuteCls(mins, filterLimit) {
+  if (mins == null) return 'ct-na';
+  const threshold = filterLimit >= 90 ? 45 : filterLimit;
+  if (mins <= threshold * 0.8) return 'ct-good';
+  if (mins <= threshold)       return 'ct-ok';
+  return 'ct-bad';
+}
+
+function buildCard(l) {
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.dataset.id = l.id;
+
+  const rentClass = l.rent_pcm < 1800 ? 'rent-green' : l.rent_pcm <= 2200 ? 'rent-amber' : 'rent-red';
+
+  // Photos
+  let photos;
+  try {
+    photos = l.photos_json ? JSON.parse(l.photos_json) : null;
+    if (!Array.isArray(photos) || !photos.length) throw 0;
+  } catch (_) {
+    photos = l.image_url ? [l.image_url] : [];
+  }
+
+  let photoHtml;
+  if (photos.length > 0) {
+    const multi = photos.length > 1;
+    const dots = multi
+      ? `<div class="carousel-dots">${photos.map((_, i) => `<span class="dot${i === 0 ? ' active' : ''}"></span>`).join('')}</div>`
+      : '';
+    const arrows = multi
+      ? `<button class="carousel-prev" aria-label="Previous">&#8249;</button><button class="carousel-next" aria-label="Next">&#8250;</button>`
+      : '';
+    const photosAttr = JSON.stringify(photos).replace(/'/g, '&#39;');
+    photoHtml = `<div class="carousel" data-idx="0" data-photos='${photosAttr}'>
+      <img class="card-photo" src="${esc(photos[0])}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="card-photo-placeholder" style="display:none">🏠</div>
+      ${arrows}${dots}
+    </div>`;
+  } else {
+    photoHtml = `<div class="carousel"><div class="card-photo-placeholder">🏠</div></div>`;
+  }
+
+  // Status badge (only show "new" badge for recently added)
+  const showBadge = l.status !== 'new' || isRecentlyAdded(l);
+  const badgeCls  = `badge-${l.status}`;
+
+  // Commute pills
+  const wCls  = commuteCls(l.commute_work_mins, CURRENT_FILTERS.maxWork);
+  const lCls  = commuteCls(l.commute_lse_mins,  CURRENT_FILTERS.maxLse);
+  const wText = l.commute_work_mins != null ? `Work ${l.commute_work_mins} min` : 'Work N/A';
+  const lText = l.commute_lse_mins  != null ? `LSE ${l.commute_lse_mins} min`  : 'LSE N/A';
+
+  // Meta chips
+  const chips = [];
+  if (l.bedrooms  != null) chips.push(`${l.bedrooms} bed`);
+  if (l.bathrooms != null) chips.push(`${l.bathrooms} bath`);
+  const domL = l.listed_date ? Math.floor((Date.now() - new Date(l.listed_date).getTime()) / 86_400_000) : null;
+  const domS = l.created_at  ? Math.floor((Date.now() - new Date(l.created_at.replace(' ','T')).getTime()) / 86_400_000) : null;
+  const dom  = domL != null && domS != null ? Math.min(domL, domS) : domL ?? domS ?? l.days_on_market;
+  if (dom != null) chips.push(`${dom}d ago`);
+
+  const platName = l.platform ? l.platform.charAt(0).toUpperCase() + l.platform.slice(1) : '';
+  const locLabel = locationLabel(l);
+  const mapsHref = `https://www.google.com/maps/search/?q=${encodeURIComponent([l.address, l.postcode].filter(Boolean).join(', '))}`;
+
+  div.innerHTML = `
+    <div class="card-photo-wrap">
+      ${photoHtml}
+      ${showBadge ? `<span class="status-badge ${badgeCls}">${l.status}</span>` : ''}
+      <button class="heart-btn ${l.status === 'favourite' ? 'active' : ''}" data-id="${l.id}" data-status="favourite" title="Favourite">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </button>
+      <div class="card-photo-links">
+        <a href="${esc(l.url)}" target="_blank" rel="noopener">View</a>
+        <a href="${mapsHref}" target="_blank" rel="noopener">Map</a>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-top">
+        <div class="card-rent ${rentClass}">£${(l.rent_pcm ?? 0).toLocaleString()}<span class="rent-period">/mo</span></div>
+        ${platName ? `<span class="platform-chip">${platName}</span>` : ''}
+      </div>
+      <div class="card-meta">
+        ${chips.map(c => `<span class="meta-chip">${c}</span>`).join('')}
+      </div>
+      <div class="commute-row">
+        <span class="commute-pill ${wCls}">${wText}</span>
+        <span class="commute-pill ${lCls}">${lText}</span>
+      </div>
+      <div class="card-address">${esc(l.address || l.title || 'Unknown address')}</div>
+      ${locLabel ? `<div class="card-location">${esc(locLabel)}</div>` : ''}
+      <button class="dismiss-btn ${l.status === 'dismissed' ? 'active' : ''}" data-id="${l.id}" data-status="dismissed" title="Dismiss">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  `;
+
+  return div;
+}
+
+/* ── Event delegation (feed) ──────────────────────────────── */
+document.getElementById('feed').addEventListener('click', async e => {
+  // Carousel navigation
+  const arrow = e.target.closest('.carousel-prev, .carousel-next');
+  if (arrow) {
+    const carousel = arrow.closest('.carousel');
+    const photos = JSON.parse(carousel.dataset.photos || '[]');
+    if (photos.length <= 1) return;
+    let idx = parseInt(carousel.dataset.idx, 10);
+    idx = (idx + (arrow.classList.contains('carousel-prev') ? -1 : 1) + photos.length) % photos.length;
+    carousel.dataset.idx = idx;
+    const img = carousel.querySelector('.card-photo');
+    if (img) { img.style.display = 'block'; img.src = photos[idx]; }
+    carousel.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+    return;
+  }
+
+  const btn = e.target.closest('.heart-btn, .dismiss-btn');
+  if (btn) {
+    const id      = btn.dataset.id;
+    const desired = btn.dataset.status;
+    const listing = ALL.find(l => l.id == id);
+    const newStatus = listing && listing.status === desired ? 'new' : desired;
+    await postJSON(`/api/listing/${id}/status`, { status: newStatus });
+    if (listing) listing.status = newStatus;
+    applyAndRender();
+    return;
+  }
+
+  // Card click → pan map to listing location
+  const card = e.target.closest('.card');
+  if (!card || e.target.closest('a, button, textarea')) return;
+  const listing = ALL.find(l => l.id == card.dataset.id);
+  if (!listing || listing._lat == null) return;
+  const targetZoom = Math.max(MAP.getZoom(), HOUSE_ZOOM);
+  MAP.flyTo([listing._lat, listing._lon], targetZoom, { duration: 0.6 });
+});
+
+// Card hover → highlight map marker
+document.getElementById('feed').addEventListener('mouseover', e => {
+  const card = e.target.closest('.card');
+  if (!card || card.dataset.id === _hoveredId) return;
+  if (_hoveredId && MARKERS[_hoveredId]) {
+    MARKERS[_hoveredId].getElement()?.classList.remove('pin-hover');
+  }
+  _hoveredId = card.dataset.id;
+  if (MARKERS[_hoveredId]) {
+    MARKERS[_hoveredId].getElement()?.classList.add('pin-hover');
+  }
+});
+document.getElementById('feed').addEventListener('mouseout', e => {
+  const card = e.target.closest('.card');
+  if (!card) return;
+  if (MARKERS[card.dataset.id]) {
+    MARKERS[card.dataset.id].getElement()?.classList.remove('pin-hover');
+  }
+  if (_hoveredId === card.dataset.id) _hoveredId = null;
+});
+
+/* ── Slider listeners ─────────────────────────────────────── */
+['max-rent', 'max-work', 'max-lse'].forEach(id => {
+  const el    = document.getElementById(id);
+  const valEl = document.getElementById(id + '-val');
+  el.addEventListener('input', () => {
+    const v = +el.value;
+    if (id === 'max-rent') {
+      valEl.textContent = `£${v.toLocaleString()}`;
+    } else {
+      valEl.textContent = v >= 90 ? 'Any' : `${v} min`;
+      el.classList.toggle('inactive', v >= 90);
+    }
+    applyAndRender();
+  });
+});
+
+/* ── Filter chip listeners ────────────────────────────────── */
+document.getElementById('sidebar').addEventListener('change', e => {
+  if (e.target.matches('.platform-check, .status-check')) applyAndRender();
+});
+document.getElementById('sort-select').addEventListener('change', applyAndRender);
+
+/* ── Reset ─────────────────────────────────────────────────── */
+document.getElementById('reset-filters').addEventListener('click', () => {
+  document.querySelectorAll('.platform-check').forEach(el => el.checked = true);
+  document.querySelectorAll('.status-check').forEach(el => { el.checked = el.value !== 'dismissed'; });
+
+  document.getElementById('max-rent').value = 2500;
+  document.getElementById('max-rent-val').textContent = '£2,500';
+
+  ['max-work', 'max-lse'].forEach(id => {
+    document.getElementById(id).value = 90;
+    document.getElementById(id + '-val').textContent = 'Any';
+    document.getElementById(id).classList.add('inactive');
+  });
+
+  document.getElementById('sort-select').value = 'listed';
+  applyAndRender();
+});
+
+/* ── Feed search ─────────────────────────────────────────────── */
+let _feedSearchTimer;
+document.getElementById('feed-search').addEventListener('input', e => {
+  clearTimeout(_feedSearchTimer);
+  _feedSearchTimer = setTimeout(() => {
+    SEARCH_QUERY = e.target.value.trim();
+    applyAndRender();
+  }, 180);
+});
+
+/* ── Map geocoding search ────────────────────────────────────── */
+async function doMapSearch() {
+  const q = document.getElementById('map-search').value.trim();
+  const resDiv = document.getElementById('map-search-results');
+  if (!q) { resDiv.style.display = 'none'; return; }
+  resDiv.style.display = 'block';
+  resDiv.innerHTML = '<div class="map-result-item" style="color:var(--text-muted)">Searching…</div>';
+  try {
+    const data = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&countrycodes=gb`
+    ).then(r => r.json());
+    resDiv.innerHTML = '';
+    if (!data.length) {
+      resDiv.innerHTML = '<div class="map-result-item" style="color:var(--text-muted)">No results</div>';
+      return;
+    }
+    data.forEach(r => {
+      const item = document.createElement('div');
+      item.className = 'map-result-item';
+      item.textContent = r.display_name;
+      item.addEventListener('click', () => {
+        MAP.flyTo([+r.lat, +r.lon], 15, { duration: 0.7 });
+        document.getElementById('map-search').value = r.display_name.split(',')[0];
+        resDiv.style.display = 'none';
+      });
+      resDiv.appendChild(item);
+    });
+  } catch (_) {
+    resDiv.innerHTML = '<div class="map-result-item" style="color:var(--text-muted)">Search failed</div>';
+  }
+}
+document.getElementById('map-search-btn').addEventListener('click', doMapSearch);
+document.getElementById('map-search').addEventListener('keydown', e => { if (e.key === 'Enter') doMapSearch(); });
+document.getElementById('map').addEventListener('click', () => {
+  document.getElementById('map-search-results').style.display = 'none';
+});
+
+/* ── Drag-to-resize ──────────────────────────────────────────── */
+let _drag = null;
+document.querySelectorAll('.drag-handle').forEach(handle => {
+  handle.addEventListener('mousedown', e => {
+    _drag = {
+      handle,
+      between:      handle.dataset.between,
+      startX:       e.clientX,
+      startSidebarW: document.getElementById('sidebar').offsetWidth,
+      startFeedW:   document.getElementById('feed').offsetWidth,
+    };
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+});
+document.addEventListener('mousemove', e => {
+  if (!_drag) return;
+  const dx = e.clientX - _drag.startX;
+  if (_drag.between === 'sidebar-feed') {
+    document.getElementById('sidebar').style.width =
+      Math.max(160, Math.min(400, _drag.startSidebarW + dx)) + 'px';
+  } else {
+    document.getElementById('feed').style.width =
+      Math.max(280, Math.min(760, _drag.startFeedW + dx)) + 'px';
+  }
+  MAP?.invalidateSize({ animate: false });
+});
+document.addEventListener('mouseup', () => {
+  if (!_drag) return;
+  _drag.handle.classList.remove('dragging');
+  _drag = null;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  MAP?.invalidateSize({ animate: false });
+});
+
+/* ── Mobile sidebar ─────────────────────────────────────────── */
+document.getElementById('mobile-filter-toggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.add('open');
+});
+document.getElementById('sidebar-close').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('open');
+});
+
+/* ── Helpers ───────────────────────────────────────────────── */
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function postJSON(url, body) {
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+const NEW_THRESHOLD_DAYS = 7;
+function isRecentlyAdded(l) {
+  if (!l.created_at) return true;
+  const created = new Date(l.created_at.replace(' ', 'T'));
+  return (Date.now() - created.getTime()) / 86_400_000 <= NEW_THRESHOLD_DAYS;
+}
+
+boot();
+</script>
+</body>
+</html>
