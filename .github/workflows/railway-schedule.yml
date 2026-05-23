@@ -33,10 +33,10 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
           RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
         run: |
-          SUSPENDED=$( [ "${{ steps.action.outputs.action }}" = "suspend" ] && echo "true" || echo "false" )
+          SLEEP=$( [ "${{ steps.action.outputs.action }}" = "suspend" ] && echo "true" || echo "false" )
           RESPONSE=$(curl -s -X POST https://backboard.railway.app/graphql/v2 \
             -H "Authorization: Bearer $RAILWAY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\":\"mutation { serviceInstanceUpdate(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", input: { isSuspended: $SUSPENDED }) }\"}")
+            -d "{\"query\":\"mutation { serviceInstanceUpdate(serviceId: \\\"$RAILWAY_SERVICE_ID\\\", environmentId: \\\"$RAILWAY_ENVIRONMENT_ID\\\", input: { sleepApplication: $SLEEP }) }\"}")
           echo "Response: $RESPONSE"
           echo "$RESPONSE" | grep -q '"errors"' && exit 1 || echo "Service ${{ steps.action.outputs.action }}d."
