@@ -201,6 +201,37 @@ The `/collection-cycle` slash command handles this correctly. Avoid `2>&1 |` for
 
 ---
 
+---
+
+## 2026-05-23 — Session 6: Online deployment (Railway + GitHub Actions)
+
+### App is deployed on Railway at london-rent-tracker.up.railway.app
+
+**What was built:** The Flask webapp is deployed on Railway (free tier, $5/month credit). The SQLite DB is committed to the GitHub repo (`alonrashty/rent-tracker`) and deployed with the app — no separate DB sync needed. Railway auto-redeploys on every `git push`.
+
+**Sleep schedule:** GitHub Actions workflow (`.github/workflows/railway-schedule.yml`) calls Railway's GraphQL API to sleep/wake the app on a schedule: wake at 08:00 Israel time (05:00 UTC), sleep at 00:00 Israel time (21:00 UTC). This keeps usage within the $5/month free credit.
+
+**Railway GraphQL API notes:**
+- Endpoint: `https://backboard.railway.app/graphql/v2`
+- Suspend/resume field: `sleepApplication: true/false` inside `ServiceInstanceUpdateInput` (NOT `isSuspended` — that field doesn't exist)
+- Auth: account-level token required (Account Settings → Tokens). Project tokens return "Not Authorized" for `serviceInstanceUpdate`
+- Service ID: `1e8e4bc4-ec58-4cac-bf96-039a9c46666e`
+- Environment ID: `a478b475-5214-4b17-b20e-3796db1a5e42`
+- GitHub secrets set: `RAILWAY_TOKEN`, `RAILWAY_SERVICE_ID`, `RAILWAY_ENVIRONMENT_ID`
+
+**Updating the live app after a collection run:**
+```powershell
+git add data/listings.db
+git commit -m "update listings YYYY-MM-DD"
+git push
+```
+This is now part of Step 5 in `/collection-cycle`. Phase 3's cron job will automate this entirely.
+
+**gh CLI installed** at `C:\Program Files\GitHub CLI\gh.exe`, authenticated as `alonrashty`.
+**railway CLI installed** via npm at `C:\Users\alonr\AppData\Roaming\npm\railway.cmd`. Run with full path if not in PATH.
+
+---
+
 ### skill.md must live in .claude/commands/ to function as a slash command
 
 **Tried:** Placing the collection cycle instructions in `skill.md` at the project root.  

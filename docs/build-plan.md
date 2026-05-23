@@ -39,5 +39,11 @@ Build in this order. Each step should work end-to-end before starting the next.
 - [ ] Logging: per-run summary (N new listings, N enriched, N emailed)
 - [ ] README: setup instructions
 
+## Hosting
+- App live at: https://london-rent-tracker.up.railway.app
+- GitHub repo: https://github.com/alonrashty/rent-tracker
+- Railway sleep schedule: 08:00–00:00 Israel time (GitHub Actions workflow)
+- To update live app after collection: `git add data/listings.db && git commit -m "update listings" && git push`
+
 ## Current status
-Phase 1 steps 1–7 complete. 93 listings in DB; 91 enriched with commute times, 2 permanently failed (1 no postcode, 1 timeout). Ready for area median prices (step 8) or webapp (Phase 2).
+Phase 1 steps 1–7 complete. Phase 2 (webapp) complete. App deployed on Railway (Session 6). Ready for Phase 3 (digest + cron automation).
