@@ -580,7 +580,7 @@ header h1 { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.3px; 
   display: none;
   position: fixed;
   bottom: 0; left: 0; right: 0;
-  z-index: 600;
+  z-index: 1100;
   background: var(--surface);
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -6px 30px rgba(0,0,0,0.25);
@@ -646,6 +646,42 @@ header h1 { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.3px; 
   font-size: 16px; display: flex; align-items: center; justify-content: center;
 }
 .popup-btn-heart.active { color: #e00032; }
+
+/* ── Lightbox ───────────────────────────────────────────────── */
+#lightbox {
+  display: none; position: fixed; inset: 0; z-index: 3000;
+  background: rgba(0,0,0,.94); flex-direction: column;
+  align-items: center; justify-content: center;
+  touch-action: none;
+}
+#lightbox.open { display: flex; }
+#lightbox-img {
+  max-width: 100%; max-height: calc(100vh - 80px);
+  object-fit: contain; user-select: none; pointer-events: none;
+  border-radius: 6px;
+}
+#lightbox-counter {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,.7); font-size: 13px; letter-spacing: .03em;
+}
+#lightbox-close {
+  position: absolute; top: 10px; right: 14px;
+  background: none; border: none; color: white; font-size: 26px;
+  line-height: 1; cursor: pointer; padding: 4px 8px; opacity: .8;
+}
+#lightbox-close:hover { opacity: 1; }
+#lightbox-prev, #lightbox-next {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,.15); border: none; color: white;
+  font-size: 28px; line-height: 1; width: 44px; height: 64px;
+  border-radius: 8px; cursor: pointer; opacity: .7; transition: opacity .15s;
+}
+#lightbox-prev:hover, #lightbox-next:hover { opacity: 1; }
+#lightbox-prev { left: 12px; }
+#lightbox-next { right: 12px; }
+@media (max-width: 600px) {
+  #lightbox-prev, #lightbox-next { width: 36px; height: 52px; font-size: 22px; }
+}
 </style>
 </head>
 <body>
@@ -755,6 +791,15 @@ header h1 { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.3px; 
 
 </div>
 
+<!-- Lightbox -->
+<div id="lightbox" role="dialog" aria-modal="true">
+  <span id="lightbox-counter"></span>
+  <button id="lightbox-close" aria-label="Close">&times;</button>
+  <button id="lightbox-prev" aria-label="Previous">&#8249;</button>
+  <img id="lightbox-img" src="" alt="">
+  <button id="lightbox-next" aria-label="Next">&#8250;</button>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>
 'use strict';
@@ -848,7 +893,7 @@ async function geocodeListings(listings) {
 
 /* ── Map ────────────────────────────────────────────────────── */
 function initMap() {
-  MAP = L.map('map', { zoomControl: true }).setView([51.532, -0.075], 13);
+  MAP = L.map('map', { zoomControl: true, attributionControl: false }).setView([51.532, -0.075], 13);
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   L.tileLayer(
     'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -1505,6 +1550,105 @@ function isRecentlyAdded(l) {
   const created = new Date(l.created_at.replace(' ', 'T'));
   return (Date.now() - created.getTime()) / 86_400_000 <= NEW_THRESHOLD_DAYS;
 }
+
+/* ── Lightbox ───────────────────────────────────────────────── */
+let _lbPhotos = [], _lbIdx = 0;
+
+function openLightbox(photos, idx) {
+  _lbPhotos = photos;
+  _lbIdx = idx;
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  updateLightbox();
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function updateLightbox() {
+  document.getElementById('lightbox-img').src = _lbPhotos[_lbIdx];
+  document.getElementById('lightbox-counter').textContent =
+    _lbPhotos.length > 1 ? `${_lbIdx + 1} / ${_lbPhotos.length}` : '';
+  document.getElementById('lightbox-prev').style.display = _lbPhotos.length > 1 ? '' : 'none';
+  document.getElementById('lightbox-next').style.display = _lbPhotos.length > 1 ? '' : 'none';
+}
+
+document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+document.getElementById('lightbox-prev').addEventListener('click', () => {
+  _lbIdx = (_lbIdx - 1 + _lbPhotos.length) % _lbPhotos.length;
+  updateLightbox();
+});
+document.getElementById('lightbox-next').addEventListener('click', () => {
+  _lbIdx = (_lbIdx + 1) % _lbPhotos.length;
+  updateLightbox();
+});
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+});
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lightbox').classList.contains('open')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') { _lbIdx = (_lbIdx - 1 + _lbPhotos.length) % _lbPhotos.length; updateLightbox(); }
+  if (e.key === 'ArrowRight') { _lbIdx = (_lbIdx + 1) % _lbPhotos.length; updateLightbox(); }
+});
+
+// Lightbox swipe
+(function() {
+  const lb = document.getElementById('lightbox');
+  let tx = 0;
+  lb.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  lb.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) { _lbIdx = (_lbIdx + 1) % _lbPhotos.length; }
+    else        { _lbIdx = (_lbIdx - 1 + _lbPhotos.length) % _lbPhotos.length; }
+    updateLightbox();
+  }, { passive: true });
+})();
+
+/* ── Carousel touch swipe (feed + popup) ───────────────────── */
+function attachCarouselTouch(container) {
+  container.addEventListener('touchstart', e => {
+    const carousel = e.target.closest('.carousel');
+    if (!carousel) return;
+    carousel._ts = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+  }, { passive: true });
+
+  container.addEventListener('touchend', e => {
+    const carousel = e.target.closest('.carousel');
+    if (!carousel || !carousel._ts) return;
+    const dx = e.changedTouches[0].clientX - carousel._ts.x;
+    const dy = e.changedTouches[0].clientY - carousel._ts.y;
+    const dt = Date.now() - carousel._ts.t;
+    carousel._ts = null;
+
+    const photos = JSON.parse(carousel.dataset.photos || '[]');
+    if (photos.length === 0) return;
+
+    // Tap → open lightbox (no significant movement, not on a button/link)
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) {
+      if (!e.target.closest('a, button')) {
+        const idx = parseInt(carousel.dataset.idx || '0', 10);
+        openLightbox(photos, idx);
+      }
+      return;
+    }
+
+    // Swipe → navigate (horizontal dominant)
+    if (Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (photos.length <= 1) return;
+      let idx = parseInt(carousel.dataset.idx || '0', 10);
+      idx = (idx + (dx < 0 ? 1 : -1) + photos.length) % photos.length;
+      carousel.dataset.idx = idx;
+      const img = carousel.querySelector('.card-photo');
+      if (img) { img.style.display = 'block'; img.src = photos[idx]; }
+      carousel.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+    }
+  }, { passive: true });
+}
+
+attachCarouselTouch(document.getElementById('feed'));
+attachCarouselTouch(document.getElementById('map-popup'));
 
 boot();
 </script>
