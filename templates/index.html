@@ -574,6 +574,78 @@ header h1 { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.3px; 
   }
 }
 @media (min-width: 901px) { #sidebar-close { display: none; } }
+
+/* ── Map popup (mobile) ──────────────────────────────────────── */
+#map-popup {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 600;
+  background: var(--surface);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 30px rgba(0,0,0,0.25);
+  max-height: 82vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform .32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+#map-popup.open { transform: translateY(0); }
+@media (max-width: 900px) { #map-popup { display: block; } }
+
+.popup-handle-bar {
+  display: flex; justify-content: center;
+  padding: 10px 0 4px;
+  cursor: pointer;
+}
+.popup-handle-bar span {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border); display: block;
+}
+.popup-photo-wrap {
+  position: relative;
+  height: 200px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.popup-photo-wrap .carousel { height: 200px; min-height: 200px; border-radius: 0; }
+.popup-photo-wrap .card-photo { height: 200px; }
+.popup-photo-wrap .card-photo-placeholder { height: 200px; min-height: 200px; }
+.popup-close {
+  position: absolute; top: 10px; right: 10px; z-index: 10;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(0,0,0,0.52); color: white; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 15px;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.popup-body {
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0));
+  display: flex; flex-direction: column; gap: 8px;
+}
+.popup-rent { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+.popup-address { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.popup-location { font-size: 12px; color: var(--text-muted); }
+.popup-actions {
+  display: flex; gap: 8px; margin-top: 4px;
+}
+.popup-btn-primary {
+  flex: 1; padding: 11px; border-radius: 10px;
+  background: var(--accent); color: white;
+  text-decoration: none; text-align: center;
+  font-size: 13px; font-weight: 600; font-family: inherit; border: none;
+}
+.popup-btn-secondary {
+  padding: 11px 16px; border-radius: 10px;
+  background: var(--surface2); color: var(--text);
+  text-decoration: none; text-align: center;
+  font-size: 13px; font-weight: 600; font-family: inherit; border: none; cursor: pointer;
+}
+.popup-btn-secondary.active { background: #ef4444; color: white; }
+.popup-btn-heart {
+  padding: 11px 14px; border-radius: 10px;
+  background: var(--surface2); color: var(--text-muted); border: none; cursor: pointer;
+  font-size: 16px; display: flex; align-items: center; justify-content: center;
+}
+.popup-btn-heart.active { color: #e00032; }
 </style>
 </head>
 <body>
@@ -654,6 +726,11 @@ header h1 { font-size: 15px; font-weight: 700; flex: 1; letter-spacing: -0.3px; 
 
     <div id="map-panel">
       <div id="map"></div>
+      <div id="map-popup">
+        <div class="popup-handle-bar"><span></span></div>
+        <div class="popup-photo-wrap" id="popup-photo"></div>
+        <div class="popup-body" id="popup-body"></div>
+      </div>
       <div id="map-search-wrap">
         <div id="map-search-inner">
           <input id="map-search" type="text" placeholder="Search any place…" autocomplete="off">
@@ -804,11 +881,15 @@ function updateMapMarkers() {
 
     const marker = L.marker([l._lat, l._lon], { icon }).addTo(MAP);
     marker.on('click', () => {
-      const card = document.querySelector(`.card[data-id="${l.id}"]`);
-      if (!card) return;
-      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      card.classList.add('map-highlight');
-      setTimeout(() => card.classList.remove('map-highlight'), 1600);
+      if (window.innerWidth <= 900) {
+        showMapPopup(l);
+      } else {
+        const card = document.querySelector(`.card[data-id="${l.id}"]`);
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.add('map-highlight');
+        setTimeout(() => card.classList.remove('map-highlight'), 1600);
+      }
     });
 
     MARKERS[l.id] = marker;
@@ -820,6 +901,120 @@ function updateMapMarkers() {
     _mapFitted = true;
   }
 }
+
+/* ── Map popup ──────────────────────────────────────────────── */
+function showMapPopup(l) {
+  const popup  = document.getElementById('map-popup');
+  const photo  = document.getElementById('popup-photo');
+  const body   = document.getElementById('popup-body');
+
+  // Photo / carousel
+  let photos;
+  try {
+    photos = l.photos_json ? JSON.parse(l.photos_json) : null;
+    if (!Array.isArray(photos) || !photos.length) throw 0;
+  } catch (_) { photos = l.image_url ? [l.image_url] : []; }
+
+  if (photos.length > 0) {
+    const multi = photos.length > 1;
+    const dots  = multi ? `<div class="carousel-dots">${photos.map((_,i) => `<span class="dot${i===0?' active':''}"></span>`).join('')}</div>` : '';
+    const arrows = multi ? `<button class="carousel-prev">&#8249;</button><button class="carousel-next">&#8250;</button>` : '';
+    const attr  = JSON.stringify(photos).replace(/'/g, '&#39;');
+    photo.innerHTML = `
+      <div class="carousel" data-idx="0" data-photos='${attr}'>
+        <img class="card-photo" src="${esc(photos[0])}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="card-photo-placeholder" style="display:none">🏠</div>
+        ${arrows}${dots}
+      </div>
+      <button class="popup-close" id="popup-close-btn">&#x2715;</button>`;
+  } else {
+    photo.innerHTML = `<div class="card-photo-placeholder">🏠</div>
+      <button class="popup-close" id="popup-close-btn">&#x2715;</button>`;
+  }
+
+  // Body
+  const rentCls = l.rent_pcm < 1800 ? 'rent-green' : l.rent_pcm <= 2200 ? 'rent-amber' : 'rent-red';
+  const wCls  = commuteCls(l.commute_work_mins, CURRENT_FILTERS.maxWork);
+  const lCls  = commuteCls(l.commute_lse_mins,  CURRENT_FILTERS.maxLse);
+  const chips = [];
+  if (l.bedrooms  != null) chips.push(`${l.bedrooms} bed`);
+  if (l.bathrooms != null) chips.push(`${l.bathrooms} bath`);
+  if (l.sqm       != null) chips.push(`${Math.round(l.sqm)} m²`);
+  const domL = l.listed_date ? Math.floor((Date.now() - new Date(l.listed_date).getTime()) / 86_400_000) : null;
+  if (domL != null) chips.push(`${domL}d ago`);
+  const mapsHref = mapsUrl(l);
+  const loc = locationLabel(l);
+
+  body.innerHTML = `
+    <div class="popup-rent ${rentCls}">£${(l.rent_pcm ?? 0).toLocaleString()}<span class="rent-period">/mo</span></div>
+    <div class="popup-address">${esc(l.address || l.title || '')}</div>
+    ${loc ? `<div class="popup-location">${esc(loc)}</div>` : ''}
+    <div class="commute-row">
+      <span class="commute-pill ${wCls}">${l.commute_work_mins != null ? `Work ${l.commute_work_mins} min` : 'Work N/A'}</span>
+      <span class="commute-pill ${lCls}">${l.commute_lse_mins  != null ? `LSE ${l.commute_lse_mins} min`  : 'LSE N/A'}</span>
+    </div>
+    <div class="card-meta">${chips.map(c => `<span class="meta-chip">${c}</span>`).join('')}</div>
+    <div class="popup-actions">
+      <a class="popup-btn-primary" href="${esc(l.url)}" target="_blank" rel="noopener">View listing</a>
+      <a class="popup-btn-secondary" href="${mapsHref}" target="_blank" rel="noopener">Map</a>
+      <button class="popup-btn-heart ${l.status==='favourite'?'active':''}" id="popup-heart" data-id="${l.id}" title="Favourite">♥</button>
+      <button class="popup-btn-secondary ${l.status==='dismissed'?'active':''}" id="popup-dismiss" data-id="${l.id}" title="Dismiss">✕</button>
+    </div>`;
+
+  // Wire up close / heart / dismiss inside popup
+  document.getElementById('popup-close-btn').onclick = closeMapPopup;
+  document.getElementById('popup-heart').onclick = async () => {
+    const btn = document.getElementById('popup-heart');
+    const listing = ALL.find(x => x.id == btn.dataset.id);
+    const newStatus = listing?.status === 'favourite' ? 'new' : 'favourite';
+    await postJSON(`/api/listing/${btn.dataset.id}/status`, { status: newStatus });
+    if (listing) listing.status = newStatus;
+    btn.classList.toggle('active', newStatus === 'favourite');
+    applyAndRender();
+  };
+  document.getElementById('popup-dismiss').onclick = async () => {
+    const btn = document.getElementById('popup-dismiss');
+    const listing = ALL.find(x => x.id == btn.dataset.id);
+    const newStatus = listing?.status === 'dismissed' ? 'new' : 'dismissed';
+    await postJSON(`/api/listing/${btn.dataset.id}/status`, { status: newStatus });
+    if (listing) listing.status = newStatus;
+    btn.classList.toggle('active', newStatus === 'dismissed');
+    applyAndRender();
+  };
+
+  popup.classList.add('open');
+}
+
+function closeMapPopup() {
+  document.getElementById('map-popup').classList.remove('open');
+}
+
+// Close on map click (outside popup)
+document.getElementById('map').addEventListener('click', closeMapPopup);
+
+// Swipe down to dismiss
+(function () {
+  const popup = document.getElementById('map-popup');
+  let _ty = 0;
+  popup.addEventListener('touchstart', e => { _ty = e.touches[0].clientY; }, { passive: true });
+  popup.addEventListener('touchend',   e => { if (e.changedTouches[0].clientY - _ty > 60) closeMapPopup(); }, { passive: true });
+  // Handle carousel arrows inside popup via delegation
+  popup.addEventListener('click', e => {
+    const arrow = e.target.closest('.carousel-prev, .carousel-next');
+    if (!arrow) return;
+    const carousel = arrow.closest('.carousel');
+    const photos = JSON.parse(carousel.dataset.photos || '[]');
+    if (photos.length <= 1) return;
+    let idx = parseInt(carousel.dataset.idx, 10);
+    idx = (idx + (arrow.classList.contains('carousel-prev') ? -1 : 1) + photos.length) % photos.length;
+    carousel.dataset.idx = idx;
+    const img = carousel.querySelector('.card-photo');
+    if (img) { img.style.display = 'block'; img.src = photos[idx]; }
+    carousel.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  });
+  // Drag handle bar closes on tap
+  popup.querySelector('.popup-handle-bar').addEventListener('click', closeMapPopup);
+})();
 
 const HOUSE_ZOOM = 15;
 function updateZoomClass() {
@@ -1037,7 +1232,7 @@ function buildCard(l) {
 
   const platName = l.platform ? l.platform.charAt(0).toUpperCase() + l.platform.slice(1) : '';
   const locLabel = locationLabel(l);
-  const mapsHref = `https://www.google.com/maps/search/?q=${encodeURIComponent([l.address, l.postcode].filter(Boolean).join(', '))}`;
+  const mapsHref = mapsUrl(l);
 
   div.innerHTML = `
     <div class="card-photo-wrap">
@@ -1283,6 +1478,12 @@ document.getElementById('sidebar-close').addEventListener('click', () => {
 });
 
 /* ── Helpers ───────────────────────────────────────────────── */
+function mapsUrl(l) {
+  if (l._lat != null && l._lon != null)
+    return `https://maps.google.com/?q=${l._lat},${l._lon}`;
+  return `https://maps.google.com/?q=${encodeURIComponent([l.address, l.postcode].filter(Boolean).join(', '))}`;
+}
+
 function esc(s) {
   if (s == null) return '';
   return String(s)
