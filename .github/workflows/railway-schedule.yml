@@ -1,0 +1,37 @@
+name: Railway sleep schedule
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 08:00 Israel (IDT, UTC+3) — wake up
+    - cron: '0 21 * * *'  # 00:00 Israel (IDT, UTC+3) — sleep
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'resume or suspend'
+        required: true
+        type: choice
+        options: [resume, suspend]
+
+jobs:
+  toggle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine action
+        id: action
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+          elif [ "$(date -u +%H)" = "05" ]; then
+            echo "action=resume" >> $GITHUB_OUTPUT
+          else
+            echo "action=suspend" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Toggle Railway service
+        run: |
+          SUSPENDED=$( [ "${{ steps.action.outputs.action }}" = "suspend" ] && echo "true" || echo "false" )
+          curl -sf -X POST https://backboard.railway.app/graphql/v2 \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\":\"mutation { serviceInstanceUpdate(serviceId: \\\"${{ secrets.RAILWAY_SERVICE_ID }}\\\", environmentId: \\\"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\\\", input: { isSuspended: $SUSPENDED }) }\"}"
+          echo "Service ${{ steps.action.outputs.action }}d."
