@@ -25,7 +25,10 @@ jobs:
       - name: Write config
         env:
           CONFIG_MD: ${{ secrets.CONFIG_MD }}
-        run: printf '%s' "$CONFIG_MD" > config.md
+        run: python -c "import os; open('config.md','w',encoding='utf-8').write(os.environ['CONFIG_MD'])"
+
+      - name: Debug config keys
+        run: python -c "import sys; sys.path.insert(0,'src'); import config; c=config.load(); print('Keys found:', sorted(c.keys()))"
 
       - name: Collect listings
         run: python src/collect.py > data/raw_latest.json
