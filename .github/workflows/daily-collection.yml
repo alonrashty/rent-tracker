@@ -1,0 +1,44 @@
+name: Daily collection
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 09:00 Israel (IDT, UTC+3)
+  workflow_dispatch:       # allow manual trigger from GitHub UI
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests apify-client
+
+      - name: Write config
+        run: echo "${{ secrets.CONFIG_MD }}" > config.md
+
+      - name: Collect listings
+        run: python src/collect.py > data/raw_latest.json
+
+      - name: Ingest listings
+        run: python src/ingest.py < data/raw_latest.json
+
+      - name: Enrich with TfL commute times
+        run: python src/enrich.py
+
+      - name: Commit and push updated DB
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/listings.db
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "listings update $(date -u +%Y-%m-%d)"
+          git push
