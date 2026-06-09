@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rent-tracker",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["serve.py"],
+      "port": 5000
+    },
+    {
+      "name": "digest-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5001"],
+      "port": 5001
+    }
+  ]
+}

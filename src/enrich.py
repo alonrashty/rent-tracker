@@ -25,7 +25,7 @@ NOMINATIM_REVERSE = "https://nominatim.openstreetmap.org/reverse"
 TFL_DATE       = "20260901"  # fixed Tuesday for consistency
 TFL_TIME       = "0900"
 
-DEST_WORK = "EC1V 9NR"
+DEST_WORK = "EC1V 1AZ"
 DEST_LSE  = "WC2A 2AE"
 
 SLEEP_BETWEEN = 1.5   # seconds between TfL requests

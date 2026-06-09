@@ -8,10 +8,8 @@ Build in this order. Each step should work end-to-end before starting the next.
 - [x] `collect.py`: expand to all areas and both platforms (Rightmove + Zoopla)
 - [x] `ingest.py`: create SQLite DB, parse Apify JSON, insert rows, dedup by URL
 - [x] `ingest.py`: update `last_seen_date` and `days_on_market` for duplicate URLs on every run
-- [ ] `collect.py`: add OpenRent via Playwright browser automation as fallback
 - [x] `enrich.py`: TfL API call for one listing, store commute times
 - [x] `enrich.py`: batch enrich all listings missing commute times; set `tfl_failed` on permanent errors
-- [ ] `ingest.py`: compute area median prices and price_vs_median_pct (Mondays only)
 - [ ] End-to-end test: full collection cycle, verify DB populated correctly
 
 ## Phase 2 — Webapp
@@ -28,9 +26,9 @@ Build in this order. Each step should work end-to-end before starting the next.
 - [x] Webapp: muted desaturated commute badge palette (ct-good/ct-ok/ct-bad) relative to filter limits
 
 ## Phase 3 — Automation
-- [ ] `digest.py`: query listings added in last 24h, format HTML email
-- [ ] `digest.py`: send via Gmail (SMTP or MCP); accept `--scheduled` flag to enable digest
-- [ ] Cron job: schedule daily 8am run in Europe/London timezone (collect → ingest → enrich → digest --scheduled)
+- [x] `digest.py`: query listings added in last 24h, format HTML email
+- [x] `digest.py`: send via Gmail (SMTP or MCP); accept `--scheduled` flag to enable digest
+- [x] Cron job: GitHub Actions workflow runs daily 09:00 Israel time (collect → ingest → enrich → digest --scheduled)
 - [ ] Test full automated cycle
 
 ## Phase 4 — Polish
