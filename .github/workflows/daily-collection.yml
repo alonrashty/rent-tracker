@@ -25,7 +25,7 @@ jobs:
       - name: Write config
         env:
           CONFIG_MD_B64: ${{ secrets.CONFIG_MD_B64 }}
-        run: echo "$CONFIG_MD_B64" | base64 -d > config.md
+        run: python -c "import os,base64; open('config.md','wb').write(base64.b64decode(os.environ['CONFIG_MD_B64']))"
 
       - name: Debug config
         run: |
