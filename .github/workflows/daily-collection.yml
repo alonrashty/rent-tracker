@@ -23,7 +23,9 @@ jobs:
         run: pip install requests apify-client
 
       - name: Write config
-        run: echo "${{ secrets.CONFIG_MD }}" > config.md
+        env:
+          CONFIG_MD: ${{ secrets.CONFIG_MD }}
+        run: printf '%s' "$CONFIG_MD" > config.md
 
       - name: Collect listings
         run: python src/collect.py > data/raw_latest.json
