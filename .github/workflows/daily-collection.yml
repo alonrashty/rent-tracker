@@ -24,11 +24,8 @@ jobs:
 
       - name: Write config
         env:
-          CONFIG_MD: ${{ secrets.CONFIG_MD }}
-        run: python -c "import os; open('config.md','w',encoding='utf-8').write(os.environ['CONFIG_MD'])"
-
-      - name: Debug config keys
-        run: python -c "import sys; sys.path.insert(0,'src'); import config; c=config.load(); print('Keys found:', sorted(c.keys()))"
+          CONFIG_MD_B64: ${{ secrets.CONFIG_MD_B64 }}
+        run: echo "$CONFIG_MD_B64" | base64 -d > config.md
 
       - name: Collect listings
         run: python src/collect.py > data/raw_latest.json
