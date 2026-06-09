@@ -27,6 +27,12 @@ jobs:
           CONFIG_MD_B64: ${{ secrets.CONFIG_MD_B64 }}
         run: echo "$CONFIG_MD_B64" | base64 -d > config.md
 
+      - name: Debug config
+        run: |
+          echo "config.md size: $(wc -c < config.md) bytes"
+          echo "first line: $(head -1 config.md)"
+          python -c "import sys; sys.path.insert(0,'src'); import config; c=config.load(); print('keys:', sorted(c.keys()))"
+
       - name: Collect listings
         run: python src/collect.py > data/raw_latest.json
 
