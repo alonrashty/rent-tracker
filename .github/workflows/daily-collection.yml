@@ -23,8 +23,17 @@ jobs:
         run: pip install requests apify-client
 
       - name: Write config
+        env:
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          sed 's/__APIFY_API_TOKEN__/${{ secrets.APIFY_API_TOKEN }}/; s/__GMAIL_APP_PASSWORD__/${{ secrets.GMAIL_APP_PASSWORD }}/' config.ci.md > config.md
+          python -c "
+          import os
+          t = open('config.ci.md').read()
+          t = t.replace('__APIFY_API_TOKEN__', os.environ['APIFY_API_TOKEN'])
+          t = t.replace('__GMAIL_APP_PASSWORD__', os.environ['GMAIL_APP_PASSWORD'])
+          open('config.md', 'w').write(t)
+          "
 
       - name: Collect listings
         run: python src/collect.py > data/raw_latest.json
