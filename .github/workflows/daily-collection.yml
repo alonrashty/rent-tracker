@@ -26,21 +26,7 @@ jobs:
         env:
           APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-        run: |
-          python - << 'EOF'
-          import os, sys
-          token = os.environ.get('APIFY_API_TOKEN', '')
-          pwd   = os.environ.get('GMAIL_APP_PASSWORD', '')
-          print(f'APIFY_API_TOKEN length: {len(token)}')
-          print(f'GMAIL_APP_PASSWORD length: {len(pwd)}')
-          if not token:
-              sys.exit('ERROR: APIFY_API_TOKEN secret is empty or not set')
-          t = open('config.ci.md').read()
-          t = t.replace('__APIFY_API_TOKEN__', token)
-          t = t.replace('__GMAIL_APP_PASSWORD__', pwd)
-          open('config.md', 'w').write(t)
-          print('config.md written OK')
-          EOF
+        run: python src/write_config.py
 
       - name: Collect listings
         run: python src/collect.py > data/raw_latest.json
