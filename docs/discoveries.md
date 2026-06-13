@@ -152,6 +152,15 @@ The `/collection-cycle` slash command handles this correctly. Avoid `2>&1 |` for
 
 ---
 
+## 2026-06-10 — CI pipeline robustness
+
+### Empty collect output (`[]`) crashed ingest with a misleading `--area required` error
+
+**Found:** collect.py wraps each Apify batch in its own try/except (per-area), so if *every* batch fails or returns nothing, it still exits 0 and emits `[]` to stdout. ingest.py's format detection was `data and isinstance(data[0], dict) and "items" in data[0]` — an empty list is falsy, so it fell into the flat-list branch and exited with `ERROR: --area required when input is a flat listing list`. The error masked the real problem (collect got 0 items) and hard-failed the whole workflow.  
+**Decided:** ingest.py now treats an empty array as a valid zero-batch input (logs "empty input — nothing to ingest", exits 0). A non-empty list whose first element lacks `items` still requires `--area`. Note: an empty result every run is still a real problem — check the "Collect listings" step logs for `[collect] ERROR:` lines (Apify token/quota/actor issues) when `total: 0 item(s)` appears.
+
+---
+
 ### Nominatim geocodes addresses when postcode is missing — use as final fallback before tfl_failed
 
 **Found:** One Zoopla listing had no postcode at all but a valid address ("Squirries Street, London E2"). postcodes.io can't help without a postcode; Nominatim (`nominatim.openstreetmap.org/search`) geocodes free-text addresses and returned accurate lat/lon.  

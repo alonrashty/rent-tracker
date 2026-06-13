@@ -377,9 +377,15 @@ def main() -> None:
     print("[ingest] reading JSON from stdin …", file=sys.stderr)
     data = json.load(sys.stdin)
 
-    # Detect format: wrapped [{"area":..., "platform":..., "items":[...]}, ...] vs flat list
-    is_wrapped = isinstance(data, list) and data and isinstance(data[0], dict) and "items" in data[0]
-    if is_wrapped:
+    if not isinstance(data, list):
+        sys.exit("ERROR: expected a JSON array on stdin")
+
+    # Detect format: wrapped [{"area":..., "platform":..., "items":[...]}, ...] vs flat list.
+    # Empty input is valid (collect found nothing) — treat as zero batches, not an error.
+    if not data:
+        print("[ingest] empty input — nothing to ingest", file=sys.stderr)
+        batches = []
+    elif isinstance(data[0], dict) and "items" in data[0]:
         batches = data
     else:
         if not args.area:
